@@ -421,21 +421,13 @@ fclose(dataFid);
         % Update positions
         if intalgo == 1
             if run_once == false
-                %velocity at next timestep uses 2 terms taylor expansion
-                %the position at next timestep uses 3 terms taylor
-                %expansion
-                  
-                  a = 1;
-                %
-                  roota = sqrt(a);
-                %
-                  b = 1.0;
+                %velocity at next timestep uses 2 terms in taylor expansion
+                %position at next timestep uses 3 terms in taylor expansion
                   %saves current position which becomes previous position
-                  %in next timestep
                   previous_pos_1 = pos;
-                  factor2 = b*timestep/2.0;
+                  factor2 = timestep/2.0;
                 % Find velocity at the quarter step:
-                  v1q = roota*vel ;
+                  v1q = vel ;
                 % Find velocity at the half step:
                   v2q = v1q + factor2*force/atomicmass;
                 % Find position at the half step:
@@ -448,7 +440,7 @@ fclose(dataFid);
                   force = getForce();
                   v3q = v2q + factor2*force/atomicmass;
                 % Find velocity at the next step:
-                  vel = roota*v3q ;
+                  vel = v3q ;
                   %runs this algorithm only once before moving on to the
                   %next algorithm
                   run_once = true;
@@ -457,20 +449,22 @@ fclose(dataFid);
             end
             
             if run_once == true
-                
                 %current force
                 force_1 = getForce();
                 
                 %position at next timestep
                 if run_count == 1
-                    %save the current position for the iteration after the
-                    %first
+                    %save the current position (becomes previous position)
                     previous_pos_2 = pos;
+                    %position at next timestep
                     pos = 2 * pos - previous_pos_1 + timestep ^ (2) * force_1/atomicmass ;
                 
                 else
+                    % saves current position for next loop
                     a = pos;
+                    %position at the next timestep
                     pos = 2 * pos - previous_pos_2 + timestep ^ (2) * force_1/atomicmass ;
+                    % position before updating becomes previous position
                     previous_pos_2 = a;
                     
                 end
