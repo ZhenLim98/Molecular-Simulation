@@ -1,4 +1,4 @@
-function [ nSteps, t, E_t, T_t, R2_t, D_t Fmax_t Frms_t] = langevinMD( nAtoms, gamma, targetTemp, timestep, equilTime, runTime, mdmode, startconf)
+function [ nSteps, t, E_t, T_t, R2_t, D_t Fmax_t Frms_t] = langevinMD_modified( nAtoms, gamma, targetTemp, timestep, equilTime, runTime,nocells1D, cellv_1, cellv_2, cellv_3, mdmode, startconf)
 %LANGEVINMD Perform Langevin Molecular Dynamics on a strand of polymer
 %
 %   Input variables:
@@ -8,6 +8,12 @@ function [ nSteps, t, E_t, T_t, R2_t, D_t Fmax_t Frms_t] = langevinMD( nAtoms, g
 %   timestep        Molecular dynamics time step in fs
 %   equilTime       Time for equilibrating the system in fs
 %   runTime         Time over which statistics are taken in fs
+%   nocells1D       Number of additional cells on each side of the unit
+%                   cell e.g nocells1D = 1 means 7 cells in total
+%                   (Note: HAS TO BE EVEN)
+%   cellv_1,2,3     Basis vectors that span the cell 
+%                   (Note: REMEMBER IT'S IN ANGSTROM)
+%   
 %
 %   mdmode:
 %    'constantE'  : after the equilibration, the friction and random forces are 
@@ -19,6 +25,7 @@ function [ nSteps, t, E_t, T_t, R2_t, D_t Fmax_t Frms_t] = langevinMD( nAtoms, g
 %    'new'        : Construct positions and velocities of the polymer from scratch
 %    'restart'    : Read positions, velocities, and number of atoms in the polymer from file 'restart_file' 
 %
+%   nocells
 %   Output variables:
 %   nSteps          The number of MD steps used for the statistics
 %   t               The time at each MD step
@@ -50,7 +57,8 @@ sigma = 4.5;          % Angstroms
 epsilon = 0.00485678; % eV; 0.112 kcal/mol
 bondLength = 1.53;    % Angstroms
 Kr = 15.18; % eV/A^2; 350 kcal/mol A^2
-run_once = false; % the verlet algorithm needs a step back in time
+
+run_once = false; 
 run_count = 0;
 previous_pos_2 = 0;
 %
@@ -133,6 +141,7 @@ vel(:,3) = vel(:,3) - cmvel(3);
 % Calculate initial temperature and kinetic energy
 %
 kinstart = getKinetic();
+disp(kinstart)
 temperature = getTemperature();  
 fprintf ('\nStarting configuration:');
 fprintf ('\n-----------------------');
@@ -319,6 +328,8 @@ fclose(dataFid);
 % Computes the kinetic energy from the velocities and masses
       kinetic = 0.5*atomicmass*(dot(vel(:,1), vel(:,1)) ...
           + dot(vel(:,2), vel(:,2)) + dot(vel(:,3), vel(:,3)));
+        
+
     end
 %
     function potential1 = getBondingEnergy()  
@@ -336,17 +347,32 @@ fclose(dataFid);
 %
     function potential2 = getNonBondingEnergy ()
         %   Computes the non-bonding Lennard-Jones energy term
-        %   between remote atoms (third neighbour or further).
-        potential2 = 0.0;
-        for i1=1:nAtoms-3
-            for j1=i1+3:nAtoms
-                r2 = (pos(i1,1)-pos(j1,1))*(pos(i1,1)-pos(j1,1)) ...
-                    + (pos(i1,2)-pos(j1,2))*(pos(i1,2)-pos(j1,2)) ...
-                    + (pos(i1,3)-pos(j1,3))*(pos(i1,3)-pos(j1,3));
-                x2 = sigma*sigma/r2;
-                x6 = x2*x2*x2;
-                x12 = x6*x6;
-                potential2 = potential2 + epsilon*(x12-2.0*x6);
+        %   between all neighbours within its cell and other cells
+        % for a cube of side length nocells1D 
+        % molecule interacts with particles and its images in all other unit cells 
+        % but not itself
+
+       potential2 = 0.0;
+       for p = -nocells1D / 2:nocells1D / 2
+           for q = -nocells1D / 2:nocells1D / 2
+               for r = -nocells1D / 2:nocells1D / 2
+                    for l=1:nAtoms
+                        for i1=l:nAtoms
+                            if l ~= i1 && p ~= 0 && q ~= 0 && r ~= 0
+                                component_1 = p * cellv_1(1) + q * cellv_2(1) + r * cellv_3(1);
+                                component_2 = p * cellv_1(2) + q * cellv_2(2) + r * cellv_3(2);
+                                component_3 = p * cellv_1(3) + q * cellv_2(3) + r * cellv_3(3);
+                                r2 = (pos(l,1)-pos(i1,1) -  component_1 )^2 ...
+                                + (pos(l,2)-pos(i1,2)- component_2 )^2 ...
+                                + (pos(l,3)-pos(i1,3)- component_3 )^2 ;
+                                x2 = sigma*sigma/r2;
+                                x6 = x2*x2*x2;
+                                x12 = x6*x6;
+                                potential2 = potential2 + 0.5 * epsilon*(x12-2.0*x6);
+                            end
+                        end
+                    end
+               end
             end
         end
     end
@@ -389,25 +415,37 @@ fclose(dataFid);
         
         % Add the non-bonding contribution to the atomic forces
         fac1 = -12.0*epsilon/(sigma*sigma);
-        for i2=1:nAtoms-3
-            for j2=i2+3:nAtoms
-                dPos(1) = pos(j2,1)-pos(i2,1);
-                dPos(2) = pos(j2,2)-pos(i2,2);
-                dPos(3) = pos(j2,3)-pos(i2,3);
-                r2 = dPos(1)*dPos(1) + dPos(2)*dPos(2) + dPos(3)*dPos(3);
-                x2 = sigma*sigma/r2;
-                x6 = x2*x2*x2;
-                x12 = x6*x6;
-                fac = fac1*x2*(x12-x6);
-                F(i2,1) = F(i2,1) + fac*dPos(1);
-                F(i2,2) = F(i2,2) + fac*dPos(2);
-                F(i2,3) = F(i2,3) + fac*dPos(3);
-                F(j2,1) = F(j2,1) - fac*dPos(1);
-                F(j2,2) = F(j2,2) - fac*dPos(2);
-                F(j2,3) = F(j2,3) - fac*dPos(3);
-            end
+        for p = -nocells1D / 2:nocells1D / 2
+           for q = -nocells1D / 2:nocells1D / 2
+               for r = -nocells1D / 2:nocells1D / 2
+                    for i2=1:nAtoms
+                        for j2=i2:nAtoms
+                            if i2 ~= j2 && p ~= 0 && q ~= 0 && r ~= 0
+                                component_1 = p * cellv_1(1) + q * cellv_2(1) + r * cellv_3(1);
+                                component_2 = p * cellv_1(2) + q * cellv_2(2) + r * cellv_3(2);
+                                component_3 = p * cellv_1(3) + q * cellv_2(3) + r * cellv_3(3);
+                                dPos(1) = pos(j2,1)-pos(i2,1) - component_1;
+                                dPos(2) = pos(j2,2)-pos(i2,2) - component_2;
+                                dPos(3) = pos(j2,3)-pos(i2,3) - component_3;
+                                r2 = dPos(1)*dPos(1) + dPos(2)*dPos(2) + dPos(3)*dPos(3);
+                                x2 = sigma*sigma/r2;
+                                x6 = x2*x2*x2;
+                                x12 = x6*x6;
+                                fac = fac1*x2*(x12-x6);
+                                F(i2,1) = F(i2,1) + fac*dPos(1);
+                                F(i2,2) = F(i2,2) + fac*dPos(2);
+                                F(i2,3) = F(i2,3) + fac*dPos(3);
+                                F(j2,1) = F(j2,1) - fac*dPos(1);
+                                F(j2,2) = F(j2,2) - fac*dPos(2);
+                                F(j2,3) = F(j2,3) - fac*dPos(3);
+                            end
+                        end
+                    end
+               end
+           end
         end
-       
+        
+
     end
 %
     function moveAtoms ()
