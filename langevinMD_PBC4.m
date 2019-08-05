@@ -1,4 +1,4 @@
-function [ nSteps, t, E_t, T_t, R2_t, D_t Fmax_t Frms_t] = langevinMD_PBC1( nAtoms, gamma, targetTemp, timestep, equilTime, runTime, nocells1D, cellv_1, cellv_2, cellv_3, mdmode, startconf)
+function [ nSteps, t, E_t, T_t, R2_t, D_t Fmax_t Frms_t] = langevinMD_PBC4( nAtoms, gamma, targetTemp, timestep, equilTime, runTime, nocells1D, cellv_1, cellv_2, cellv_3, mdmode, startconf)
 %LANGEVINMD Perform Langevin Molecular Dynamics on a strand of polymer
 %
 %   Input variables:
