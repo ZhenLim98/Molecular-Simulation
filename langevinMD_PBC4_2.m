@@ -391,7 +391,7 @@ disp(interactioncounter)
                                 x6 = x2*x2*x2; 
                                 x12 = x6*x6;
                                 
-                                potential2 = potential2 + 0.5 * 4 * epsilon * (x12-x6) ;
+                                potential2 = potential2 + 0.5 * epsilon * (x12-x6) ;
                             
                                 else
                                 end
