@@ -496,9 +496,6 @@ fclose(dataFid);
                                 component_x = p * h(1,1) + q * h(1,2) + r * h(1,3);
                                 component_y = p * h(2,1) + q * h(2,2) + r * h(2,3);
                                 component_z = p * h(3,1) + q * h(3,2) + r * h(3,3);
-                                dPos(1) = pos(1,i2) - pos(1,j2) - component_x;
-                                dPos(2) = pos(2,i2)- pos(2,j2) - component_y;
-                                dPos(3) = pos(3,i2)- pos(3,j2) - component_z;
                                 
                                 %if beyond a certain radius then stops
                                 %counting interactions
@@ -507,6 +504,9 @@ fclose(dataFid);
                                     + (pos(3,j2) + component_z) * (pos(2,j2) + component_z);
                                 
                                 if d_origin2 < cutoff_radius * cutoff_radius
+                                dPos(1) = pos(1,i2) - pos(1,j2) - component_x;
+                                dPos(2) = pos(2,i2)- pos(2,j2) - component_y;
+                                dPos(3) = pos(3,i2)- pos(3,j2) - component_z;
                                 r2 = dPos(1)^2 + dPos(2)^2 + dPos(3)^2 ;
 
                                 x2 = sigma*sigma/r2;
@@ -609,11 +609,12 @@ fclose(dataFid);
         % Find atomic and cell positions at the next step:
           pos = p2q + factor2 * (v2q + V2q * pos);%
           h = h2q + factor2 * V2q * h;%
-%           getNonBondingEnergy()
-%           h(3,3) = h(3,3) * 1.1
-%           getNonBondingEnergy()
-%           force = getForce();
-%           disp(( force * s' ) * h')
+%            Ptot = getNonBondingEnergy() + getBondingEnergy()
+%            h(3,3) = h(3,3) * 1.01
+%            Ptot = getNonBondingEnergy() + getBondingEnergy()
+%            force = getForce();
+%            S = getStressTensor()
+          % disp(( force * s' ) * h')
           s = h\pos;%
         % Find atomic and cell velocities at the three quarter step:
           force = getForce();%
@@ -627,63 +628,65 @@ fclose(dataFid);
         end
     end
     
-     function S = getStressTensor()
-        %using the StressTensor from Parrinello-Rahman, Eq. 7
-        %stress tensor is 'S', scaled size is 's'
+    function S = getStressTensor()
+        %using the PR StressTensor (see reversible integrators paper)
+        %stress tensor is 'S', scaled size is 's' 
+      
     [~ ,b] = size(vel); %size is being used elsewhere  
     S = zeros(3);
     factor1 = atomicmass * (vel * vel');
     factor3 = ( force * pos' );
     
-   fac1 = -12.0*epsilon/(sigma*sigma);
-        for i2=1:nAtoms
-            for p = -nocells1D:nocells1D
-               for q = -nocells1D:nocells1D
-                   for r = -nocells1D:nocells1D
-                        for j2=1:nAtoms
-                            for i3 = 1:1:3
-                                for j3 = 1:1:3
-                                    if  i2 == j2 && p == 0 && q == 0 && r == 0
-                                        %no self interaction
-                                    else
-                                        %interaction with all other images in all
-                                        %other cells
-                                        component_x = p * h(1,1) + q * h(1,2) + r * h(1,3);
-                                        component_y = p * h(2,1) + q * h(2,2) + r * h(2,3);
-                                        component_z = p * h(3,1) + q * h(3,2) + r * h(3,3);
-
-                                        %if beyond a certain radius then stops
-                                        %counting interactions
-                                        d_origin2 = (pos(1,j2) + component_x)*(pos(1,j2) + component_x) ...
-                                            + (pos(2,j2) + component_y) * (pos(2,j2) + component_y) ...
-                                            + (pos(3,j2) + component_z) * (pos(2,j2) + component_z);
-
-                                        if d_origin2 < cutoff_radius * cutoff_radius
-                                        dPos(1) = pos(1,i2) - pos(1,j2) - component_x;
-                                        dPos(2) = pos(2,i2)- pos(2,j2) - component_y;
-                                        dPos(3) = pos(3,i2)- pos(3,j2) - component_z;
-                                        r2 = dPos(1)^2 + dPos(2)^2 + dPos(3)^2 ;
-                                        x2 = sigma*sigma/r2;
-                                        x6 = x2*x2*x2;
-                                        x12 = x6*x6;
-                                        fac = fac1*x2*(x12-x6);
-                                        dPos_s = h \ dPos';
-                                        factor2_s(i3,j3) = factor2_s(i3,j3) + 0.5 * fac * (dPos(i3)/(r2)^(0.5)) * dPos_s(j3);
-
-                                        else
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-               end
-           end
-        end    
-
-    S = S + 1/det(h) * (factor1 + factor2_s + factor3);
-    end
-
+    S = S + 1/det(h)*(factor1 + factor3);
+%     
+%     fac1 = -12.0*epsilon/(sigma*sigma);
+%         for i2=1:nAtoms
+%             for p = -nocells1D:nocells1D
+%                for q = -nocells1D:nocells1D
+%                    for r = -nocells1D:nocells1D
+%                         for j2=1:nAtoms
+%                             for i3 = 1:1:3
+%                                 for j3 = 1:1:3
+%                                     if  i2 == j2 && p == 0 && q == 0 && r == 0
+%                                         %no self interaction
+%                                     else
+%                                         %interaction with all other images in all
+%                                         %other cells
+%                                         component_x = p * h(1,1) + q * h(1,2) + r * h(1,3);
+%                                         component_y = p * h(2,1) + q * h(2,2) + r * h(2,3);
+%                                         component_z = p * h(3,1) + q * h(3,2) + r * h(3,3);
+% 
+%                                         %if beyond a certain radius then stops
+%                                         %counting interactions
+%                                         d_origin2 = (pos(1,j2) + component_x)*(pos(1,j2) + component_x) ...
+%                                             + (pos(2,j2) + component_y) * (pos(2,j2) + component_y) ...
+%                                             + (pos(3,j2) + component_z) * (pos(2,j2) + component_z);
+% 
+%                                         if d_origin2 < cutoff_radius * cutoff_radius
+%                                         dPos(1) = pos(1,i2) - pos(1,j2) - component_x;
+%                                         dPos(2) = pos(2,i2)- pos(2,j2) - component_y;
+%                                         dPos(3) = pos(3,i2)- pos(3,j2) - component_z;
+%                                         r2 = dPos(1)^2 + dPos(2)^2 + dPos(3)^2 ;
+%                                         x2 = sigma*sigma/r2;
+%                                         x6 = x2*x2*x2;
+%                                         x12 = x6*x6;
+%                                         fac = fac1*x2*(x12-x6);
+%                                         dPos_s = h \ dPos';
+%                                         factor2_s(i3,j3) = factor2_s(i3,j3) + 0.5 * fac * (dPos(i3)/(r2)^(0.5)) * dPos_s(j3);
+% 
+%                                         else
+%                                         end
+%                                     end
+%                                 end
+%                             end
+%                         end
+%                     end
+%                end
+%            end
+%         end    
+%     
+%      S = S + 1/det(h) * (factor1 - factor2_s * h' + factor3);
+     end
 
      function relaxAtoms ()
          factor = timestep_factor*timestep/(2.0*atomicmass);
