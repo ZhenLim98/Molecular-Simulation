@@ -109,7 +109,7 @@ switch startconf
         nAtoms=fscanf(inputFid, '%i', 1);
         size_1 = [ 3 nAtoms  ];
         pos=fscanf(inputFid, '%g', size_1);        
-        vel=fscanf(inputFid, '%g', size);
+        vel=fscanf(inputFid, '%g', size_1);
         fclose(inputFid);
 %
     otherwise
@@ -450,6 +450,7 @@ fclose(dataFid);
         % Compute the bonding contribution to the atomic forces
         %only between adjacent molecules
         F = zeros(3, nAtoms);
+        F_prime = [0, 0, 0];
         for i2=1:nAtoms-1
             j2=i2+1;
             dPos(1) = pos(1,j2)-pos(1,i2);
@@ -516,6 +517,7 @@ fclose(dataFid);
                                 F(1, i2) = F(1,i2) + fac * dPos(1);
                                 F(2, i2) = F(2,i2) + fac * dPos(2);
                                 F(3, i2) = F(3,i2) + fac * dPos(3);
+                               % F_prime = [F_prime ;fac * dPos']; 
                                 
                                 %storing factors to be used in calculation
                                 %of internal stress tensor
@@ -536,6 +538,7 @@ fclose(dataFid);
                end
            end
         end
+  %  F_prime(:,1) = [];
     end
 %
     function moveAtoms ()
